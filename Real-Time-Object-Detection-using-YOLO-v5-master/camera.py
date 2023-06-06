@@ -126,11 +126,15 @@ if __name__ == "__main__":
     model1.eval()
     model2.eval()
 
-    cap1 = cv2.VideoCapture(0)    
+    cap1 = cv2.VideoCapture('D:\IEC\Real-Time-Object-Detection-using-YOLO-v3-master\Real-Time-Object-Detection-using-YOLO-v3-master/traffic1.mp4')
     cap1.set(3,160)
-    cap1.set(4,120)     
+    cap1.set(4,120)
+    cap2 = cv2.VideoCapture('D:\IEC\Real-Time-Object-Detection-using-YOLO-v3-master\Real-Time-Object-Detection-using-YOLO-v3-master/traffic2.mp4')
+    cap2.set(3,160)
+    cap2.set(4,120)       
     #cap = cv2.VideoCapture(0)
     assert cap1.isOpened(), 'Cannot capture source'
+    assert cap2.isOpened(), 'Cannot capture source'
     count1 = 0
     frames1 = 0
     count2 = 0
@@ -143,16 +147,18 @@ if __name__ == "__main__":
     m1=0
     m2=0
     i = 0
-
+    dem = 0
 
     maxx1 = 0
     maxx2 = 0
-
+    classes1 = load_classes('D:/IEC/Real-Time-Object-Detection-using-YOLO-v3-master/Real-Time-Object-Detection-using-YOLO-v3-master/data/coco.names')
+    colors1 = pkl.load(open("D:/IEC/Real-Time-Object-Detection-using-YOLO-v3-master/Real-Time-Object-Detection-using-YOLO-v3-master/color/pallete", "rb"))
     while True:
         i=i+1
+        
         ret1, frame1 = cap1.read()
         if ret1:
-
+            
             img1, orig_im1, dim1 = prep_image(frame1, inp_dim1)
             img1.to(device)
 
@@ -165,11 +171,70 @@ if __name__ == "__main__":
             output1[:, [1, 3]] *= frame1.shape[1]
             output1[:, [2, 4]] *= frame1.shape[0]
 
-            classes1 = load_classes('D:/IEC/Real-Time-Object-Detection-using-YOLO-v3-master/Real-Time-Object-Detection-using-YOLO-v3-master/data/coco.names')
-            colors1 = pkl.load(open("D:/IEC/Real-Time-Object-Detection-using-YOLO-v3-master/Real-Time-Object-Detection-using-YOLO-v3-master/color/pallete", "rb"))
+        
 
             count1 = 0
-            list(map(lambda x: write1(x, orig_im1), output1))
-            key = cv2.waitKey(0)
-            if key & 0xFF == ord('q'):
-                break
+        list(map(lambda x: write1(x, orig_im1), output1))
+        cv2.imshow("frame1", orig_im1)
+ 
+        ret2, frame2 = cap2.read()
+        if ret2:
+
+            img2, orig_im2, dim2 = prep_image(frame2, inp_dim2)
+            img2.to(device)
+
+            output2 = model2(img2)
+            output2 = write_results(output2, confidence, num_classes, nms_conf=nms_thesh)
+
+
+            output2[:, 1:5] = torch.clamp(output2[:, 1:5], 0.0, float(inp_dim2)) / inp_dim2
+
+            output2[:, [1, 3]] *= frame2.shape[1]
+            output2[:, [2, 4]] *= frame2.shape[0]
+
+            classes2 = load_classes('D:/IEC/Real-Time-Object-Detection-using-YOLO-v3-master/Real-Time-Object-Detection-using-YOLO-v3-master/data/coco.names')
+            colors2 = pkl.load(open("D:/IEC/Real-Time-Object-Detection-using-YOLO-v3-master/Real-Time-Object-Detection-using-YOLO-v3-master/color/pallete", "rb"))
+
+
+            count2 = 0
+            list(map(lambda x: write2(x, orig_im2), output2))
+            #time.sleep(2);  
+            if count101 == 1 :
+                count101 = 0
+                 
+                m1=max1
+                max1 = 0
+            else :
+                count101 += 1
+                if max1 < count1 :
+                    max1 = count1
+
+            if count102 == 1 :
+                count102 = 0
+
+                m2=max2
+                max2 = 0
+            else :
+                count102 += 1
+                if max2 < count2 :
+                    max2 = count2
+            if m1 != maxx1 and m1 != 0 and m2 != maxx2 and m2 != 0 :
+                s1 = str(maxx1)
+                s2 = str(maxx2)
+                # truyền dữ liệu 
+                myobj = {'traffic 1':s1,'traffic 2':s2}
+                if i % 4 == 0 :
+                    x = requests.post(url, json = myobj)
+                    print(x.text)
+                    if (maxx1 > maxx2):
+                        dem = dem+1
+                        if (dem > 4):
+                            print(dem*5,"+ 5s")      
+                    if (maxx1<maxx2):
+                        dem = 0     
+                maxx2 = m2
+                maxx1 = m1    
+            cv2.imshow("frame2", orig_im2)
+        key = cv2.waitKey(1)
+        if key & 0xFF == ord('q'):
+            break
